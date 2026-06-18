@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin'
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; connect-src 'self' https://api.telegram.org https://*.ton.org https://tonapi.io; frame-src 'self' https://telegram.org; font-src 'self' https://fonts.gstatic.com;"
           }
         ]
       }

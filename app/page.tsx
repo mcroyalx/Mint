@@ -157,7 +157,7 @@ export default function Home() {
   const [tonBalance, setTonBalance] = useState<number>(0.0);
   const [usdtBalance, setUsdtBalance] = useState<number>(0.0);
 
-  const TON_TO_USD = 1.0;
+  const TON_TO_USD = 2.5;
   
   // Load channels static initially to support perfect SSR hydration
   const [channels, setChannels] = useState<ChannelTDA[]>(INITIAL_CHANNELS);
@@ -180,8 +180,13 @@ export default function Home() {
   const [dragDirectionLocked, setDragDirectionLocked] = useState<"none" | "horizontal" | "vertical">("none");
   const [isPanningNews, setIsPanningNews] = useState<boolean>(false);
 
-  // Admin access control (Always enabled by default for developer owner)
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  // Admin access control — derived from server-verified authentication
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("ton_admin_auth_passed_v5") === "true";
+    }
+    return false;
+  });
 
   // Administrative aspect and role (switchable in control deck)
   const [adminRole, setAdminRole] = useState<"super_admin" | "moderator" | "risk_analyst" | "financial_auditor">("super_admin");
@@ -198,8 +203,8 @@ export default function Home() {
   const [users, setUsers] = useState<PlatformUser[]>([
     {
       id: "user_current",
-      email: "tairabdyukaev1980@gmail.com",
-      walletAddress: "EQB_tair_dyukaev_1980_compliant_ton_address",
+      email: "",
+      walletAddress: "",
       tonBalance: 0.0,
       usdtBalance: 0.0,
       role: "super_admin",
@@ -256,29 +261,41 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isHydrated]);
 
-  // Input controller for security PIN
+  // Input controller for security PIN — verified server-side
   const handlePINInput = (num: string) => {
     if (adminPasscode.length >= 4) return;
     const nextPIN = adminPasscode + num;
     setAdminPasscode(nextPIN);
     
     if (nextPIN.length === 4) {
-      if (nextPIN === "2026" || nextPIN === "7777" || nextPIN === "0000") {
-        setTimeout(() => {
-          setIsAdminAuthenticated(true);
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("ton_admin_auth_passed_v5", "true");
+      fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode: nextPIN }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            setIsAdminAuthenticated(true);
+            setIsAdmin(true);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("ton_admin_auth_passed_v5", "true");
+            }
+          } else {
+            setPasscodeError(true);
+            setTimeout(() => {
+              setPasscodeError(false);
+              setAdminPasscode("");
+            }, 800);
           }
-        }, 350);
-      } else {
-        setTimeout(() => {
+        })
+        .catch(() => {
           setPasscodeError(true);
           setTimeout(() => {
             setPasscodeError(false);
             setAdminPasscode("");
           }, 800);
-        }, 150);
-      }
+        });
     }
   };
 
@@ -1118,6 +1135,9 @@ export default function Home() {
         const currentSoldSoft = totalFloatShares * (channel.tdaProgress / 100);
         const newSoldSoft = currentSoldSoft + amountVal;
         newProgress = parseFloat(((newSoldSoft / totalFloatShares) * 100).toFixed(2));
+        if (newProgress >= 100 && channel.tdaProgress < 100) {
+          tdaCompletedAlert = true;
+        }
       }
 
       // Deduct balance

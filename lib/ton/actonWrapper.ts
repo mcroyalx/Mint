@@ -196,11 +196,15 @@ export class MintActonSDK {
     const claimable = unlocked - this.vestingSchedule.sharesClaimed;
     if (claimable <= 0) return 0;
 
-    this.vestingSchedule.sharesClaimed += claimable;
+    const maxMintable = this.tokenState.totalSupply - this.tokenState.circulatingSupply;
+    const actualClaim = Math.min(claimable, maxMintable);
+    if (actualClaim <= 0) return 0;
+
+    this.vestingSchedule.sharesClaimed += actualClaim;
     const ben = this.vestingSchedule.beneficiary;
-    this.tokenState.balances[ben] = (this.tokenState.balances[ben] || 0) + claimable;
-    this.tokenState.circulatingSupply += claimable;
-    return claimable;
+    this.tokenState.balances[ben] = (this.tokenState.balances[ben] || 0) + actualClaim;
+    this.tokenState.circulatingSupply += actualClaim;
+    return actualClaim;
   }
 
   // --- 4. Revenue Distribution wrappers ---
@@ -259,6 +263,10 @@ export class MintActonSDK {
   }
 
   public buySharesInteractive(buyer: string, amount: number): { costTON: number; sharesAllocated: number } {
+    if (amount <= 0) throw new Error("Buy amount must be positive.");
+    if (this.tokenState.circulatingSupply + amount > this.tokenState.totalSupply) {
+      throw new Error("Purchase would exceed total supply.");
+    }
     const cost = this.getBuyCost(amount);
     this.tokenState.balances[buyer] = (this.tokenState.balances[buyer] || 0) + amount;
     this.tokenState.circulatingSupply += amount;
@@ -267,10 +275,15 @@ export class MintActonSDK {
   }
 
   public sellSharesInteractive(seller: string, amount: number): { payoutTON: number; exitTaxTON: number } {
+    if (amount <= 0) throw new Error("Sell amount must be positive.");
     const userBal = this.tokenState.balances[seller] || 0;
     if (userBal < amount) throw new Error("Insufficient shares to sell on curve.");
 
     const rawPayout = this.getSellReturn(amount);
+
+    if (rawPayout > this.reserveBalanceTON) {
+      throw new Error("Insufficient reserve liquidity for this sell order.");
+    }
     
     // applying 10% exit tax
     const exitTaxTON = Math.floor(rawPayout * 0.10);
@@ -298,9 +311,19 @@ export class MintActonSDK {
     return baseShares;
   }
 
+  private votedUsers: Record<string, Set<number>> = {};
+
   public castVote(user: string, proposalId: number, supports: boolean): void {
     const prop = this.proposals.find((p) => p.id === proposalId);
     if (!prop) throw new Error("Proposal ID not detected.");
+
+    if (!this.votedUsers[user]) {
+      this.votedUsers[user] = new Set();
+    }
+    if (this.votedUsers[user].has(proposalId)) {
+      throw new Error("User has already voted on this proposal.");
+    }
+    this.votedUsers[user].add(proposalId);
     
     const votingPower = this.calculateShieldedVotingWeight(user);
     if (supports) {
