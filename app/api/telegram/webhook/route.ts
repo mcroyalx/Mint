@@ -1,22 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_TOKEN = "8880314964:AAEo6hqxCDxoTINeLjrt9BXfitZrH4NpDvA";
+function getBotToken(): string | undefined {
+  return process.env.TELEGRAM_BOT_TOKEN;
+}
 
-function getBotToken() {
-  return DEFAULT_TOKEN;
+const ALLOWED_HOSTS = new Set(
+  (process.env.ALLOWED_HOSTS || "").split(",").map(h => h.trim()).filter(Boolean)
+);
+
+function getSafeAppUrl(req: NextRequest): string {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/$/, "");
+  }
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host;
+  if (ALLOWED_HOSTS.size > 0 && !ALLOWED_HOSTS.has(host)) {
+    throw new Error(`Untrusted host: ${host}`);
+  }
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  return `${proto}://${host}`;
 }
 
 // GET /api/telegram/webhook - dynamically registers or checks the webhook
 export async function GET(req: NextRequest) {
-  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host;
-  const proto = req.headers.get("x-forwarded-proto") || "https";
-  const appUrl = `${proto}://${host}`;
+  let appUrl: string;
+  try {
+    appUrl = getSafeAppUrl(req);
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 400 });
+  }
   const webhookUrl = `${appUrl}/api/telegram/webhook`;
 
   const FALLBACK_BOT = {
     first_name: "MINT Web3 Bot",
     username: "mint_web3_web_bot",
-    id: 8880314964
+    id: 0
   };
 
   try {
@@ -131,6 +148,19 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = getBotToken();
+    if (!token) {
+      return NextResponse.json({ ok: false, error: "Bot token not configured" }, { status: 503 });
+    }
+
+    // Verify the request is actually from Telegram using the secret token header
+    const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (secretToken) {
+      const headerSecret = req.headers.get("x-telegram-bot-api-secret-token");
+      if (headerSecret !== secretToken) {
+        return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 403 });
+      }
+    }
+
     const body = await req.json();
 
     if (!body || !body.message) {
@@ -146,9 +176,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host;
-    const proto = req.headers.get("x-forwarded-proto") || "https";
-    const appUrl = `${proto}://${host}`;
+    let appUrl: string;
+    try {
+      appUrl = getSafeAppUrl(req);
+    } catch (e: any) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: 400 });
+    }
 
     // Handle Start command
     if (text === "/start") {
@@ -190,7 +223,7 @@ export async function POST(req: NextRequest) {
         // Try to query the real Gemini endpoint
         try {
           // Hardcoded or dynamically omitted to prevent platform UI prompt for environment variable
-          const geminiApiKey = null;
+          const geminiApiKey = process.env.GEMINI_API_KEY;
           if (geminiApiKey) {
             const aiRes = await fetch(`${appUrl}/api/gemini`, {
               method: "POST",

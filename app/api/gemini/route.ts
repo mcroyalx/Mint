@@ -3,9 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Dynamic initialization helper to avoid crash on startup if key is missing
 function getGeminiClient() {
-  // Hardcoded to null to prevent platform UI prompt for environment variable
-  const apiKey = null;
-  if (!apiKey) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
     return null;
   }
   return new GoogleGenAI({
