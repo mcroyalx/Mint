@@ -81,7 +81,7 @@ Provide a premium investor prospectus structured in 3 clear high-impact sentence
   }
 }
 
-function generateFallbackResponse(handle: string) {
+export function generateFallbackResponse(handle: string) {
   const normalized = handle.toLowerCase();
   
   // Custom generation based on the string value to feel extremely authentic
