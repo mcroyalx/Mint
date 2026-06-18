@@ -25,14 +25,7 @@ import { motion } from "motion/react";
 import { MintActonSDK } from "@/lib/ton/actonWrapper";
 import { deployMintEcosystem } from "@/lib/ton/deploySinks";
 import { runContractSimulationSuite, TestResult } from "@/lib/ton/testContracts";
-
-// Format helper
-const formatNumber = (num: number): string => {
-  if (num === undefined || num === null || isNaN(num)) return "0";
-  const parts = num.toString().split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.join(".");
-};
+import { formatNumberCompact as formatNumber } from "@/lib/formatters";
 
 export default function ContractsTab() {
   const [subTab, setSubTab] = useState<"blueprint" | "sandbox" | "testSuite">("sandbox");

@@ -65,14 +65,9 @@ import {
   PortfolioHolding,
   ActivityLog
 } from "@/lib/marketData";
-
-const formatNumber = (num: number, decimals?: number): string => {
-  if (num === undefined || num === null || isNaN(num)) return "0";
-  let str = decimals !== undefined ? num.toFixed(decimals) : num.toString();
-  const parts = str.split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return parts.join(",");
-};
+import { formatNumber, formatTimestamp } from "@/lib/formatters";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import { getFloatMetrics } from "@/lib/channelUtils";
 
 const NEWS_ITEMS: any[] = [];
 
@@ -554,71 +549,17 @@ export default function Home() {
 
 
   // Sync state items back to localStorage after hydration is complete
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_tda_channels_v5", JSON.stringify(channels));
-    }
-  }, [channels, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("tda_applications_v5", JSON.stringify(tdaRequests));
-    }
-  }, [tdaRequests, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_investor_apps_v5", JSON.stringify(investorApplications));
-    }
-  }, [investorApplications, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_balance_v5", tonBalance.toString());
-    }
-  }, [tonBalance, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("usdt_balance_v5", usdtBalance.toString());
-    }
-  }, [usdtBalance, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_holdings_v5", JSON.stringify(holdings));
-    }
-  }, [holdings, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_activity_v5", JSON.stringify(activity));
-    }
-  }, [activity, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_admin_role_v5", adminRole);
-    }
-  }, [adminRole, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_system_settings_v5", JSON.stringify(systemSettings));
-    }
-  }, [systemSettings, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_system_users_v5", JSON.stringify(users));
-    }
-  }, [users, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated && typeof window !== "undefined") {
-      localStorage.setItem("ton_news_list_v5", JSON.stringify(newsList));
-    }
-  }, [newsList, isHydrated]);
+  usePersistedState("ton_tda_channels_v5", channels, isHydrated);
+  usePersistedState("tda_applications_v5", tdaRequests, isHydrated);
+  usePersistedState("ton_investor_apps_v5", investorApplications, isHydrated);
+  usePersistedState("ton_balance_v5", tonBalance, isHydrated);
+  usePersistedState("usdt_balance_v5", usdtBalance, isHydrated);
+  usePersistedState("ton_holdings_v5", holdings, isHydrated);
+  usePersistedState("ton_activity_v5", activity, isHydrated);
+  usePersistedState("ton_admin_role_v5", adminRole, isHydrated);
+  usePersistedState("ton_system_settings_v5", systemSettings, isHydrated);
+  usePersistedState("ton_system_users_v5", users, isHydrated);
+  usePersistedState("ton_news_list_v5", newsList, isHydrated);
 
   // Update currentTime
   useEffect(() => {
@@ -857,11 +798,9 @@ export default function Home() {
     // Revert TDA Progress
     setChannels((prev) => prev.map(c => {
       if (c.id === app.channelId) {
-        const totalShares = c.totalShares || 100000;
-        const floatFraction = (c.floatPercent || 30) / 100;
-        const totalFloatShares = totalShares * floatFraction;
-        const currentSoldSoft = (totalFloatShares * (c.tdaProgress / 100)) - app.requestedShares;
-        let newProgress = Math.min(100, Math.max(0, parseFloat(((currentSoldSoft / totalFloatShares) * 100).toFixed(2))));
+        const { totalFloatShares, currentSoldSoft } = getFloatMetrics(c);
+        const adjustedSold = currentSoldSoft - app.requestedShares;
+        let newProgress = Math.min(100, Math.max(0, parseFloat(((adjustedSold / totalFloatShares) * 100).toFixed(2))));
         return { ...c, tdaProgress: newProgress };
       }
       return c;
@@ -907,10 +846,7 @@ export default function Home() {
     }
 
     if (difference > 0) {
-      const totalShares = channel.totalShares || 100000;
-      const floatFraction = (channel.floatPercent || 30) / 100;
-      const totalFloatShares = totalShares * floatFraction;
-      const currentSoldSoft = (totalFloatShares * (channel.tdaProgress / 100));
+      const { totalFloatShares, currentSoldSoft } = getFloatMetrics(channel);
       const remainingFloatShares = totalFloatShares - currentSoldSoft;
 
       if (difference > remainingFloatShares) {
@@ -935,12 +871,10 @@ export default function Home() {
 
     // Update TDA Progress
     if (channel) {
-      const totalShares = channel.totalShares || 100000;
-      const floatFraction = (channel.floatPercent || 30) / 100;
-      const totalFloatShares = totalShares * floatFraction;
-      const currentSoldSoft = (totalFloatShares * (channel.tdaProgress / 100)) + difference;
+      const { totalFloatShares, currentSoldSoft } = getFloatMetrics(channel);
+      const adjustedSold = currentSoldSoft + difference;
       
-      let newProgress = Math.max(0, parseFloat(((currentSoldSoft / totalFloatShares) * 100).toFixed(2)));
+      let newProgress = Math.max(0, parseFloat(((adjustedSold / totalFloatShares) * 100).toFixed(2)));
       setChannels((prev) => prev.map(c => c.id === channel.id ? { ...c, tdaProgress: newProgress } : c));
       if (stagedChannel && stagedChannel.id === channel.id) {
          setStagedChannel(prev => prev ? { ...prev, tdaProgress: newProgress } : null);
@@ -970,10 +904,7 @@ export default function Home() {
       return;
     }
 
-    const totalShares = channel.totalShares || 100000;
-    const floatFraction = (channel.floatPercent || 30) / 100;
-    const totalFloatShares = totalShares * floatFraction;
-    const currentSoldSoft = totalFloatShares * (channel.tdaProgress / 100);
+    const { totalFloatShares, currentSoldSoft } = getFloatMetrics(channel);
 
     const totalCost = parseFloat((amountVal * channel.sharePrice).toFixed(2));
     
@@ -1078,9 +1009,7 @@ export default function Home() {
       }
 
       // Calculate stable total shares and float limit
-      const totalShares = channel.totalShares || 100000;
-      const floatFraction = (channel.floatPercent || 30) / 100;
-      const totalFloatShares = totalShares * floatFraction;
+      const { totalFloatShares, currentSoldSoft } = getFloatMetrics(channel);
 
       // Check if channel is in TDA stage (has an active timer)
       const isTDAStage = !!channel.tdaEndTime;
@@ -1093,11 +1022,8 @@ export default function Home() {
 
       let remainingFloatShares = 0;
       if (isTDAStage) {
-        // In TDA subscription stage, remaining shares are the unassigned float shares
-        const currentSoldSoft = totalFloatShares * (channel.tdaProgress / 100);
         remainingFloatShares = Math.max(0, totalFloatShares - currentSoldSoft);
       } else {
-        // In Secondary Trading, user can only buy up to the total public float amount
         remainingFloatShares = Math.max(0, totalFloatShares - userSharesOwned);
       }
 
@@ -1243,7 +1169,7 @@ export default function Home() {
       });
 
       // Simple bonding curve pricing: price depreciates slightly on sell
-      const totalShares = channel.totalShares || 100000;
+      const { totalShares } = getFloatMetrics(channel);
       
       // Kept prices fixed since user requested fixed quantities and prices.
 
@@ -4863,7 +4789,7 @@ contract MediaBondingCurve {
                                 const claimLog = {
                                   id: `log_${Date.now()}`,
                                   userId: "system",
-                                  timestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString().slice(0, 5)}`,
+                                  timestamp: formatTimestamp(),
                                   type: "MINT" as any,
                                   channelName: "Fee Withdrawal",
                                   amountTON: accumulatedReservePool,
@@ -5119,7 +5045,7 @@ contract MediaBondingCurve {
                                 const newLog = {
                                   id: `log_${Date.now()}`,
                                   userId: "user_current",
-                                  timestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString().slice(0, 5)}`,
+                                  timestamp: formatTimestamp(),
                                   type: "TDA" as any,
                                   channelName: newChanName.trim(),
                                   amountTON: 0,
@@ -5227,7 +5153,7 @@ contract MediaBondingCurve {
                               const airdropLog = {
                                 id: `log_${Date.now()}`,
                                 userId: "system",
-                                timestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString().slice(0, 5)}`,
+                                timestamp: formatTimestamp(),
                                 type: "MINT" as any,
                                 channelName: "Platform Airdrop Drop",
                                 amountTON: amount,
