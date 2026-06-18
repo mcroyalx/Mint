@@ -1,0 +1,68 @@
+// Acton Lang - Smart Contract for Founders Vesting, Treasury Control & Linear Unlocks
+// Ensures no immediate exit of content managers and protects public project float.
+
+actor MintVesting(
+    mediaTokenAddress: String,
+    beneficiary: String,
+    totalVestedShares: Int,
+    startBlock: Int,
+    durationBlocks: Int,
+    cliffBlocks: Int
+) {
+    var sharesClaimed: Int = 0
+    var isInitialized: Bool = false
+    var managerAddress: String = ""
+
+    signal VestingClaimed(claimant: String, amount: Int)
+
+    action init(manager: String) {
+        managerAddress = manager
+    }
+
+    // Calculates the linearly unlocked shares at a specific block number
+    query calculateUnlocked(currentBlock: Int): Int {
+        if (currentBlock < startBlock + cliffBlocks) {
+            return 0
+        }
+        
+        if (currentBlock >= startBlock + durationBlocks) {
+            return totalVestedShares
+        }
+
+        var elapsed = currentBlock - startBlock
+        var vestedFraction = Float(elapsed) / Float(durationBlocks)
+        return Int(Float(totalVestedShares) * vestedFraction)
+    }
+
+    // Transfers unlocked shares from contract to the founder account or treasury
+    action claimUnlockedShares(currentBlock: Int) {
+        assert(context.sender == beneficiary, "Unauthorized: Beneficiary signature mismatch")
+        
+        var unlocked = calculateUnlocked(currentBlock)
+        var claimable = unlocked - sharesClaimed
+        
+        assert(claimable > 0, "No unlocked shares currently available for withdrawal")
+        
+        sharesClaimed += claimable
+        
+        // Execute Acton transfer operation in associated token contract
+        MintMediaToken(mediaTokenAddress).transferShares(beneficiary, claimable)
+        
+        VestingClaimed(beneficiary, claimable)
+    }
+
+    query getVestingSummary(currentBlock: Int): Map[String, Any] {
+        var unlocked = calculateUnlocked(currentBlock)
+        return {
+            "token": mediaTokenAddress,
+            "beneficiary": beneficiary,
+            "startingBlock": startBlock,
+            "spanBlocks": durationBlocks,
+            "cliffPeriod": cliffBlocks,
+            "totalLockedPool": totalVestedShares,
+            "currentUnlocked": unlocked,
+            "alreadyClaimed": sharesClaimed,
+            "withdrawable": unlocked - sharesClaimed
+        }
+    }
+}

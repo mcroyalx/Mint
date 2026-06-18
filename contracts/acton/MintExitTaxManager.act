@@ -1,0 +1,47 @@
+// Acton Lang - Exit Tax Contract
+// Intercepts short term market transactions and assigns portions to the long-term stakers/supporters.
+
+actor MintExitTaxManager(
+    sharesTokenAddress: String,
+    distributionContractAddress: String
+) {
+    var accumulatedTaxFundsTON: Int = 0
+    var totalDispersedTaxTON: Int = 0
+    var ownerAddress: String = ""
+
+    signal TaxesCollected(amountTON: Int)
+    signal TaxesDisbursed(payoutAmountTON: Int)
+
+    action init(owner: String) {
+        ownerAddress = owner
+    }
+
+    // Receives raw tax TON payloads from trading transactions
+    action receiveTaxTON(amountTON: Int) {
+        accumulatedTaxFundsTON += amountTON
+        TaxesCollected(amountTON)
+    }
+
+    // Automatically triggers redistribution back down to stakers via the reward indices
+    action disperseCollectedTaxes() {
+        assert(accumulatedTaxFundsTON > 0, "No pending tax yield to divide")
+        
+        var payout = accumulatedTaxFundsTON
+        accumulatedTaxFundsTON = 0
+        totalDispersedTaxTON += payout
+
+        // Dispatch funds to the revenue reward distributor contract, scaling index automatically
+        MintRevenueDistributor(distributionContractAddress).payRevenueTON(payout)
+
+        TaxesDisbursed(payout)
+    }
+
+    query getTaxMetrics(): Map[String, Any] {
+        return {
+            "token": sharesTokenAddress,
+            "distributor": distributionContractAddress,
+            "accruedUnreleasedTON": accumulatedTaxFundsTON,
+            "historicDispersedTON": totalDispersedTaxTON
+        }
+    }
+}

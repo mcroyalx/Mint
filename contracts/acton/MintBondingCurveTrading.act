@@ -1,0 +1,111 @@
+// Acton Lang - Bonding Curve Trading Smart Contract
+// Implements automated market makers with liquidity guarantees for media equity pools
+
+actor MintBondingCurveTrading(
+    tokenAddress: String,
+    taxCollectorAddress: String,
+    basePriceTON: Int, // Base cost for the first share, e.g. 1000 nanotons
+    slopeMultiplier: Int // Exponential curve scaling coefficient
+) {
+    var circulatingShares: Int = 0
+    var reserveBalanceTON: Int = 0
+    var totalTradingVolumeTON: Int = 0
+
+    signal SharesPurchased(buyer: String, amount: Int, costTON: Int, taxTON: Int)
+    signal SharesSold(seller: String, amount: Int, payoutTON: Int, taxTON: Int)
+
+    // Polynomial pricing function: Price = basePrice + (slopeMultiplier * supply)
+    // Dynamic integration calculations are used to find exact pool prices for specific batches.
+    query getPriceForSupply(supply: Int): Int {
+        return basePriceTON + (slopeMultiplier * supply)
+    }
+
+    // Calculates exactly how much TON is required to purchase a specific number of shares
+    query getBuyCost(amount: Int): Int {
+        var cost: Int = 0
+        var tempSupply = circulatingShares
+        var i: Int = 0
+        while (i < amount) {
+            cost += getPriceForSupply(tempSupply)
+            tempSupply += 1
+            i += 1
+        }
+        return cost
+    }
+
+    // Calculates how much TON is returned upon selling a specific number of shares
+    query getSellReturn(amount: Int): Int {
+        assert(circulatingShares >= amount, "Insufficient market float supply")
+        var payout: Int = 0
+        var tempSupply = circulatingShares - 1
+        var i: Int = 0
+        while (i < amount) {
+            payout += getPriceForSupply(tempSupply)
+            tempSupply -= 1
+            i += 1
+        }
+        return payout
+    }
+
+    // Purchase shares with TON payload transfer
+    action buyShares(buyer: String, amount: Int, providedTON: Int) {
+        var actualCost = getBuyCost(amount)
+        assert(providedTON >= actualCost, "Insufficient TON provided for total buy order cost")
+
+        // MintMediaToken executes standard token release 
+        MintMediaToken(tokenAddress).claimPublicFloat(buyer, amount)
+        circulatingShares += amount
+        reserveBalanceTON += actualCost
+        totalTradingVolumeTON += actualCost
+
+        // Return leftover TON
+        var change = providedTON - actualCost
+        if (change > 0) {
+            sendTONBack(buyer, change)
+        }
+
+        SharesPurchased(buyer, amount, actualCost, 0)
+    }
+
+    // Sell shares back to the reserves
+    action sellShares(seller: String, amount: Int) {
+        assert(circulatingShares >= amount, "Invalid circulating supply state")
+        
+        var basePayout = getSellReturn(amount)
+        
+        // Apply Exit Tax (10% standard dev/staking allocation tax)
+        var taxAmount = (basePayout * 10) / 100
+        var clientPayout = basePayout - taxAmount
+
+        assert(reserveBalanceTON >= basePayout, "Reserves liquidity lock protection fail")
+
+        // Burn/Claim shares back inside custody
+        MintMediaToken(tokenAddress).transferShares(context.selfAddress, amount)
+        circulatingShares -= amount
+        reserveBalanceTON -= basePayout
+        totalTradingVolumeTON += basePayout
+
+        // Send fees to Tax Distributor contract
+        sendTONBack(taxCollectorAddress, taxAmount)
+        // Send remainder to investor
+        sendTONBack(seller, clientPayout)
+
+        SharesSold(seller, amount, clientPayout, taxAmount)
+    }
+
+    local action sendTONBack(recipient: String, amount: Int) {
+        // Native TON transport logic
+    }
+
+    query getTradingPoolStats(): Map[String, Any] {
+        return {
+            "token": tokenAddress,
+            "slope": slopeMultiplier,
+            "basePrice": basePriceTON,
+            "nextPurchasePrice": getPriceForSupply(circulatingShares),
+            "reserveHoldings": reserveBalanceTON,
+            "volume": totalTradingVolumeTON,
+            "circulatingMarketFloat": circulatingShares
+        }
+    }
+}

@@ -1,0 +1,129 @@
+// Acton Lang - Smart Contract for TON TDA and Channel Funding Allocation
+// Manages oversubscriptions and exact share settlements
+
+enum TDAState {
+    PENDING,
+    ACTIVE,
+    COMPLETED,
+    ABORTED
+}
+
+actor MintTDAManager(
+    tokenAddress: String,
+    fundingGoalTON: Int,
+    publicSharesOffered: Int,
+    minDepositTON: Int,
+    maxDepositTON: Int,
+    durationBlocks: Int
+) {
+    var state: TDAState = TDAState.PENDING
+    var totalDepositedTON: Int = 0
+    var deposits: Map[String, Int] = {}
+    var startBlock: Int = 0
+    var endBlock: Int = 0
+    var founderAddress: String = ""
+
+    signal Deposited(backer: String, amountTON: Int)
+    signal TDAFinalized(totalRaised: Int, allocationRatio: Float)
+    signal Refunded(backer: String, amountTON: Int)
+
+    action init(founder: String) {
+        founderAddress = founder
+    }
+
+    action launchTDA(currentBlock: Int) {
+        assert(context.sender == founderAddress, "Only owner can start the funding pool")
+        assert(state == TDAState.PENDING, "TDA already initialized or executed")
+        
+        state = TDAState.ACTIVE
+        startBlock = currentBlock
+        endBlock = currentBlock + durationBlocks
+    }
+
+    // Accepts active deposits in TON
+    action depositTON(backer: String, amountTON: Int, currentBlock: Int) {
+        assert(state == TDAState.ACTIVE, "TDA is not open for public subscription")
+        assert(currentBlock <= endBlock, "TDA funding period has finished")
+        assert(amountTON >= minDepositTON, "Deposit is below the platform minimum limit")
+        
+        var currentBackerDeposit = deposits.get(backer, 0)
+        var nextDeposit = currentBackerDeposit + amountTON
+        assert(nextDeposit <= maxDepositTON, "TDAs enforce a maximum allocation protection rate per wallet")
+
+        deposits[backer] = nextDeposit
+        totalDepositedTON += amountTON
+        
+        Deposited(backer, amountTON)
+    }
+
+    // Finalizes funding using Acton Actor message loops
+    action finalizeTDA() {
+        assert(state == TDAState.ACTIVE, "Cannot finalize in present state")
+        
+        if (totalDepositedTON >= fundingGoalTON) {
+            state = TDAState.COMPLETED
+            
+            // Allocate shares & deal with potential oversubscription refunds
+            var allocationRatio: Float = 1.0
+            if (totalDepositedTON > fundingGoalTON) {
+                // If oversubscribed, calculate partial ownership
+                allocationRatio = Float(fundingGoalTON) / Float(totalDepositedTON)
+            }
+
+            // Distribute shares proportionally is implemented inside the client/off-chain settlement layer 
+            // triggered by this system state, keeping TON interactions light and cheap.
+            TDAFinalized(totalDepositedTON, allocationRatio)
+        } else {
+            // Unmet funding goals trigger refund mode
+            state = TDAState.ABORTED
+        }
+    }
+
+    // Triggered if TDA aborts or oversubscribed refund is requested
+    action claimRefund(backer: String) {
+        var userDeposit = deposits.get(backer, 0)
+        assert(userDeposit > 0, "No collateral found")
+
+        if (state == TDAState.ABORTED) {
+            // Full refund
+            deposits[backer] = 0
+            totalDepositedTON -= userDeposit
+            
+            // Send TON back to subscriber
+            sendTON(backer, userDeposit)
+            Refunded(backer, userDeposit)
+        } else if (state == TDAState.COMPLETED) {
+            // Refund oversubscription portion
+            var ratio = Float(fundingGoalTON) / Float(totalDepositedTON)
+            if (ratio < 1.0) {
+                var filledAmount = Int(Float(userDeposit) * ratio)
+                var refundAmount = userDeposit - filledAmount
+                
+                if (refundAmount > 0) {
+                    deposits[backer] = filledAmount
+                    sendTON(backer, refundAmount)
+                    Refunded(backer, refundAmount)
+                }
+            }
+        } else {
+            revert("Refunds are invalid in non-terminal states")
+        }
+    }
+
+    // Abstract micro-function mapping TON native payload transfers
+    local action sendTON(recipient: String, amount: Int) {
+        // Safe TON native call placeholder
+    }
+
+    // Get statistics
+    query getTDAStatus(): Map[String, Any] {
+        return {
+            "tdaToken": tokenAddress,
+            "currentState": state,
+            "goalTON": fundingGoalTON,
+            "sharesAllocated": publicSharesOffered,
+            "stagedTON": totalDepositedTON,
+            "oversubscribed": totalDepositedTON > fundingGoalTON
+        }
+    }
+}

@@ -1,0 +1,104 @@
+// Acton Lang - Revenue Distribution smart contract
+// Redistributes TON ad spend, subscriptions, and sponsorships directly to verified stakers/shareholders.
+
+actor MintRevenueDistributor(
+    tokenAddress: String
+) {
+    // Index tracking to prevent expensive O(N) looping on-chain.
+    // Follows the scalable pool distribution math model.
+    var currentRewardIndex: Int = 0 // reward index in TON per share * 1e9 precision
+    var totalStakedTokens: Int = 0
+    var userStakes: Map[String, Int] = {}
+    var userRewardIndex: Map[String, Int] = {}
+    var accruedUserPayments: Map[String, Int] = {}
+    var totalDistributedTON: Int = 0
+
+    signal RevenueReceived(amountTON: Int)
+    signal Staked(user: String, amount: Int)
+    signal Unstaked(user: String, amount: Int)
+    signal ProfitClaimed(user: String, amountTON: Int)
+
+    // Deposit Revenue to the contract directly from advertiser integrations
+    action payRevenueTON(amountTON: Int) {
+        assert(amountTON > 0, "Amount must be positive")
+        assert(totalStakedTokens > 0, "No active stakers to distribute revenue to")
+
+        // scale rewards linearly across index pointers
+        var rewardsScaled = amountTON * 1000000000 // 1e9 precision
+        currentRewardIndex += rewardsScaled / totalStakedTokens
+        totalDistributedTON += amountTON
+
+        RevenueReceived(amountTON)
+    }
+
+    // Commits shares to staking engine
+    action stakeShares(user: String, amount: Int) {
+        // Step 1: Accumulate outstanding rewards prior to altering index
+        updatePendingReward(user)
+
+        // Step 2: Transfer the shares into contract custody
+        MintMediaToken(tokenAddress).transferShares(context.selfAddress, amount)
+
+        userStakes[user] = userStakes.get(user, 0) + amount
+        totalStakedTokens += amount
+        userRewardIndex[user] = currentRewardIndex
+
+        Staked(user, amount)
+    }
+
+    action unstakeShares(user: String, amount: Int) {
+        var stakedAmount = userStakes.get(user, 0)
+        assert(stakedAmount >= amount, "Unstake limit exceeds total locked quota")
+
+        // Step 1: Accumulate outstanding rewards prior to altering index
+        updatePendingReward(user)
+
+        userStakes[user] = stakedAmount - amount
+        totalStakedTokens -= amount
+        
+        // Return shares
+        MintMediaToken(tokenAddress).transferShares(user, amount)
+
+        Unstaked(user, amount)
+    }
+
+    // Update pending yield internally
+    local action updatePendingReward(user: String) {
+        var stake = userStakes.get(user, 0)
+        if (stake > 0) {
+            var diff = currentRewardIndex - userRewardIndex.get(user, 0)
+            var rewardAccrued = (stake * diff) / 1000000000
+            accruedUserPayments[user] = accruedUserPayments.get(user, 0) + rewardAccrued
+        }
+        userRewardIndex[user] = currentRewardIndex
+    }
+
+    // Action to claim actual TON payouts
+    action claimYield(user: String) {
+        updatePendingReward(user)
+        var payout = accruedUserPayments.get(user, 0)
+        assert(payout > 0, "Zero outstanding earnings to disburse")
+
+        accruedUserPayments[user] = 0
+        sendTONYield(user, payout)
+
+        ProfitClaimed(user, payout)
+    }
+
+    local action sendTONYield(recipient: String, amount: Int) {
+        // Native TON payout implementation hook
+    }
+
+    query getYieldPortfolio(user: String): Map[String, Any] {
+        var stake = userStakes.get(user, 0)
+        var diff = currentRewardIndex - userRewardIndex.get(user, 0)
+        var pending = (stake * diff) / 1000000000 + accruedUserPayments.get(user, 0)
+        return {
+            "token": tokenAddress,
+            "stakedAmount": stake,
+            "claimableTON": pending,
+            "platformTotalStaked": totalStakedTokens,
+            "totalRevenueGenerated": totalDistributedTON
+        }
+    }
+}

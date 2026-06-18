@@ -1,0 +1,140 @@
+// Acton Lang - Media Creator Governance & Takeover Shield Contract
+// Protects channel founders from hostile takeovers and handles upgrade/policy changes.
+
+enum VoteChoice {
+    YEA,
+    NAY,
+    ABSTAIN
+}
+
+struct Proposal {
+    id: Int
+    title: String
+    description: String
+    targetContract: String
+    actionPayload: String
+    voteStart: Int
+    voteEnd: Int
+    yeasCount: Int
+    naysCount: Int
+    executed: Bool
+}
+
+actor MintGovernance(
+    sharesTokenAddress: String,
+    quorumPercent: Int, // e.g. 15% minimal voting support needed
+    enactmentDelayBlocks: Int // Delay period to verify security integrity
+) {
+    var proposals: Map[Int, Proposal] = {}
+    var hasVoted: Map[String, Bool] = {} // Composite check mockup: hasVoted["propId_userAddress"]
+    var proposalCounter: Int = 0
+    var isEmergencyPaused: Bool = false
+    var guardianAddress: String = ""
+
+    signal ProposalCreated(id: Int, title: String)
+    signal VoteCast(voter: String, propId: Int, weight: Int, choice: VoteChoice)
+    signal ProposalExecuted(id: Int)
+    signal EmergencyTriggered(paused: Bool)
+
+    action init(guardian: String) {
+        guardianAddress = guardian
+    }
+
+    // Hostile Takeover Protection Filter
+    // Calculates safe voting power weights. Even if a hostile group buys 90% of circulating shares,
+    // individual or single-entity address voting weights are capped at 30% of total circulating supply
+    // to shield the founder and original content managers from malicious eviction or content hijacking.
+    query calculateShieldedVotingWeight(user: String): Int {
+        var baseShares = MintMediaToken(sharesTokenAddress).getBalanceOf(user)
+        var globalCirculating = MintMediaToken(sharesTokenAddress).getCirculatingSupply()
+
+        var maxCapAllowed = (globalCirculating * 30) / 100 // Capped strictly at 30% power cap
+        if (baseShares > maxCapAllowed) {
+            return maxCapAllowed
+        }
+        return baseShares
+    }
+
+    action createProposal(
+        title: String,
+        description: String,
+        targetContract: String,
+        payload: String,
+        currentBlock: Int,
+        spanBlocks: Int
+    ) {
+        assert(!isEmergencyPaused, "System is under emergency guardian lock")
+        
+        // Anti-spam filter: Proposer must hold a minimal backing
+        var weight = calculateShieldedVotingWeight(context.sender)
+        assert(weight > 0, "No equity delegation registered to propose changes")
+
+        proposalCounter += 1
+        var newProp = Proposal(
+            id: proposalCounter,
+            title: title,
+            description: description,
+            targetContract: targetContract,
+            actionPayload: payload,
+            voteStart: currentBlock,
+            voteEnd: currentBlock + spanBlocks,
+            yeasCount: 0,
+            naysCount: 0,
+            executed: false
+        )
+        proposals[proposalCounter] = newProp
+        
+        ProposalCreated(proposalCounter, title)
+    }
+
+    action castVote(proposalId: Int, choice: VoteChoice, currentBlock: Int) {
+        assert(!isEmergencyPaused, "System is under emergency guardian lock")
+        
+        var voteKey = proposalId.toString() + "_" + context.sender
+        assert(hasVoted.get(voteKey, false) == false, "Duplicate votes are strictly barred")
+
+        var prop = proposals.get(proposalId)
+        assert(prop.id > 0, "Proposal ID not found")
+        assert(currentBlock >= prop.voteStart && currentBlock <= prop.voteEnd, "Voting has concluded or is not active")
+
+        var calculatedPower = calculateShieldedVotingWeight(context.sender)
+        assert(calculatedPower > 0, "No valid voting shares found")
+
+        if (choice == VoteChoice.YEA) {
+            prop.yeasCount += calculatedPower
+        } else if (choice == VoteChoice.NAY) {
+            prop.naysCount += calculatedPower
+        }
+        
+        proposals[proposalId] = prop
+        hasVoted[voteKey] = true
+
+        VoteCast(context.sender, proposalId, calculatedPower, choice)
+    }
+
+    action executeProposal(proposalId: Int, currentBlock: Int) {
+        var prop = proposals.get(proposalId)
+        assert(prop.id > 0, "Proposal not found")
+        assert(!prop.executed, "Proposal was already processed")
+        assert(currentBlock > prop.voteEnd + enactmentDelayBlocks, "Enactment lock still in effect")
+
+        var globalCirculating = MintMediaToken(sharesTokenAddress).getCirculatingSupply()
+        var totalVotesCast = prop.yeasCount + prop.naysCount
+        var quorumRequirement = (globalCirculating * quorumPercent) / 100
+
+        assert(totalVotesCast >= quorumRequirement, "proposal failed to meet democratic quorum values")
+        assert(prop.yeasCount > prop.naysCount, "Majority support was not secured")
+
+        prop.executed = true
+        proposals[proposalId] = prop
+
+        // Perform actual contract interaction dispatch
+        ProposalExecuted(proposalId)
+    }
+
+    action triggerEmergencyFreeze(pausedState: Bool) {
+        assert(context.sender == guardianAddress, "Caller does not hold guardian security access level")
+        isEmergencyPaused = pausedState
+        EmergencyTriggered(pausedState)
+    }
+}

@@ -1,0 +1,89 @@
+// Acton Lang - smart contract actor definition for mint Ecosystem
+// Media Equity Share Contract
+
+actor MintMediaToken(
+    channelId: String,
+    founderAddress: String,
+    totalShares: Int,
+    founderAllocation: Int,
+    publicFloatAllocation: Int
+) {
+    // Contract States
+    var symbol: String = "MINT-" + channelId.upper()
+    var name: String = "Mint Media Equity " + channelId
+    var circulatingSupply: Int = 0
+    var balances: Map[String, Int] = {}
+    var vestingContractAddress: String = ""
+    var tdaContractAddress: String = ""
+
+    // Events
+    signal IssuedShares(recipient: String, amount: Int)
+    signal TransferredShares(sender: String, recipient: String, amount: Int)
+
+    // Actor constructor behavior
+    action init() {
+        // Safe allocation boundaries checks
+        assert(founderAllocation + publicFloatAllocation <= totalShares, "Allocation sum exceeds hardcap limits")
+        
+        // Setup initial shares
+        balances[founderAddress] = founderAllocation
+        circulatingSupply = founderAllocation
+    }
+
+    // Access control modifiers mockups in Acton logic
+    action authorizeTDAContract(tdaAddr: String) {
+        assert(context.sender == founderAddress, "Access Denied: Founder privilege only")
+        tdaContractAddress = tdaAddr
+    }
+
+    action authorizeVestingContract(vestingAddr: String) {
+        assert(context.sender == founderAddress, "Access Denied: Founder privilege only")
+        vestingContractAddress = vestingAddr
+    }
+
+    // Distribute public float into trading pools or TDA contracts
+    action claimPublicFloat(recipient: String, amount: Int) {
+        assert(
+            context.sender == tdaContractAddress || context.sender == founderAddress, 
+            "Access Denied: Unauthorized claim caller"
+        )
+        assert(circulatingSupply + amount <= totalShares, "Circulating limit exceeded")
+        
+        var currentBal = balances.get(recipient, 0)
+        balances[recipient] = currentBal + amount
+        circulatingSupply += amount
+        
+        IssuedShares(recipient, amount)
+    }
+
+    // Standard transfer message interface
+    action transferShares(to: String, amount: Int) {
+        var senderBal = balances.get(context.sender, 0)
+        assert(senderBal >= amount, "Insufficient share equity balance")
+        
+        balances[context.sender] = senderBal - amount
+        var recipientBal = balances.get(to, 0)
+        balances[to] = recipientBal + amount
+        
+        TransferredShares(context.sender, to, amount)
+    }
+
+    // Query current balance (Getter patterns)
+    query getBalanceOf(address: String): Int {
+        return balances.get(address, 0)
+    }
+
+    query getCirculatingSupply(): Int {
+        return circulatingSupply
+    }
+
+    query getSpecification(): Map[String, Any] {
+        return {
+            "name": name,
+            "symbol": symbol,
+            "totalCap": totalShares,
+            "circulating": circulatingSupply,
+            "verifiedFounder": founderAddress
+        }
+    }
+}

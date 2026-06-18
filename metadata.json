@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Mint",
+  "description": "A premium liquid-glass exchange for Telegram channel IPOs, bringing minimal, Nasdaq-style media equity trading to the TON ecosystem.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
