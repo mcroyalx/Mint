@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Clock, BarChart2, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, Zap } from "lucide-react";
+import { formatPrice, formatVolume } from "@/lib/formatters";
 
 interface TradingChartProps {
   channelId: string;
@@ -23,20 +24,6 @@ interface Candle {
 function getSeededRandom(seed: number) {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
-}
-
-// Pretty formatting helpers
-function formatPrice(val: number): string {
-  if (val >= 1000) return val.toLocaleString([], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (val >= 10) return val.toFixed(3);
-  if (val >= 1) return val.toFixed(4);
-  return val.toFixed(5);
-}
-
-function formatVolume(val: number): string {
-  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}M`;
-  if (val >= 1_000) return `${(val / 1_000).toFixed(1)}K`;
-  return val.toFixed(0);
 }
 
 export default function TradingChart({
