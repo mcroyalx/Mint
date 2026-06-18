@@ -133,8 +133,10 @@ export default function ContractsTab() {
     if (!sdk) return;
     try {
       const amount = parseInt(buySharesAmount);
-      if (isNaN(amount) || amount <= 0) return;
-      
+      if (isNaN(amount) || amount <= 0) {
+        addLog("[ERROR] Buy amount must be a valid positive number.");
+        return;
+      }
       const cost = sdk.getBuyCost(amount);
       sdk.buySharesInteractive("DEMO_USER", amount);
       addLog(`[AMM] Purchased ${formatNumber(amount)} MINT-TECH shares. Expended ${formatNumber(cost)} nano-TON.`);
@@ -148,7 +150,10 @@ export default function ContractsTab() {
     if (!sdk) return;
     try {
       const amount = parseInt(sellSharesAmount);
-      if (isNaN(amount) || amount <= 0) return;
+      if (isNaN(amount) || amount <= 0) {
+        addLog("[ERROR] Sell amount must be a valid positive number.");
+        return;
+      }
 
       const payout = sdk.sellSharesInteractive("DEMO_USER", amount);
       addLog(`[AMM] Sold ${formatNumber(amount)} MINT-TECH shares on linear curve.`);
@@ -164,7 +169,10 @@ export default function ContractsTab() {
     if (!sdk) return;
     try {
       const amount = parseInt(stakeSharesAmount);
-      if (isNaN(amount) || amount <= 0) return;
+      if (isNaN(amount) || amount <= 0) {
+        addLog("[ERROR] Stake amount must be a valid positive number.");
+        return;
+      }
 
       sdk.stakeShares("DEMO_USER", amount);
       addLog(`[STAKE] Committed ${formatNumber(amount)} MINT-TECH shares into yield distribution pool.`);
@@ -178,11 +186,18 @@ export default function ContractsTab() {
     if (!sdk) return;
     try {
       const tonVal = parseInt(adRevenueInput);
-      if (isNaN(tonVal) || tonVal <= 0) return;
+      if (isNaN(tonVal) || tonVal <= 0) {
+        addLog("[ERROR] Ad revenue amount must be a valid positive number.");
+        return;
+      }
 
-      sdk.depositAdRevenue(tonVal);
-      addLog(`[REVENUE_DISTRIBUTOR] Injected ${formatNumber(tonVal)} TON advertisement sponsorship.`);
-      addLog("[STAKE] Index recalculated. Rewards divided proportionally across active stakers.");
+      const result = sdk.depositAdRevenue(tonVal);
+      if (!result.distributed) {
+        addLog(`[WARNING] Revenue not distributed: ${result.reason}`);
+      } else {
+        addLog(`[REVENUE_DISTRIBUTOR] Injected ${formatNumber(tonVal)} TON advertisement sponsorship.`);
+        addLog("[STAKE] Index recalculated. Rewards divided proportionally across active stakers.");
+      }
       syncState();
     } catch (e: any) {
       addLog(`[ERROR] Ad revenue deployment: ${e.message}`);
