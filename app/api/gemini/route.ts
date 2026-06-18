@@ -73,11 +73,14 @@ Provide a premium investor prospectus structured in 3 clear high-impact sentence
     const data = JSON.parse(text.trim());
     return NextResponse.json(data);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     console.error("Gemini TDA Analysis API Error:", error);
-    // Graceful fallback so the client never crashes
     const fallbackData = generateFallbackResponse("fallback");
-    return NextResponse.json({ ...fallbackData, error: error.message, isInteractiveMock: true });
+    return NextResponse.json(
+      { ...fallbackData, error: message, isInteractiveMock: true },
+      { status: 502 }
+    );
   }
 }
 

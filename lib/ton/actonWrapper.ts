@@ -136,6 +136,8 @@ export class MintActonSDK {
 
   // --- 1. Share Token Contract Wrappers ---
   public transferShares(sender: string, recipient: string, amount: number): void {
+    if (amount <= 0) throw new Error("Transfer amount must be positive.");
+    if (sender === recipient) throw new Error("Cannot transfer shares to self.");
     const senderBal = this.tokenState.balances[sender] || 0;
     if (senderBal < amount) throw new Error("Insufficient shares equity balance.");
     this.tokenState.balances[sender] = senderBal - amount;
@@ -148,6 +150,7 @@ export class MintActonSDK {
   }
 
   public depositTON(backer: string, amountTON: number): void {
+    if (amountTON <= 0) throw new Error("Deposit amount must be positive.");
     if (this.tdaState.status !== "ACTIVE") throw new Error("TDA process is not open currently.");
     this.tdaState.deposits[backer] = (this.tdaState.deposits[backer] || 0) + amountTON;
     this.tdaState.totalDepositedTON += amountTON;
@@ -204,10 +207,12 @@ export class MintActonSDK {
   }
 
   // --- 4. Revenue Distribution wrappers ---
-  public depositAdRevenue(amountTON: number): void {
+  public depositAdRevenue(amountTON: number): { distributed: boolean; reason?: string } {
+    if (amountTON <= 0) {
+      return { distributed: false, reason: "Amount must be positive" };
+    }
     if (this.stancePool.totalStakedTokens === 0) {
-      // Burn or buffer if no stakers exist
-      return;
+      return { distributed: false, reason: "No active stakers to receive revenue" };
     }
     this.stancePool.totalDistributedTON += amountTON;
     
@@ -218,9 +223,11 @@ export class MintActonSDK {
       const profitShare = Math.floor(amountTON * distributionRatio);
       this.stancePool.accruedUserPayments[user] = (this.stancePool.accruedUserPayments[user] || 0) + profitShare;
     });
+    return { distributed: true };
   }
 
   public stakeShares(user: string, amount: number): void {
+    if (amount <= 0) throw new Error("Stake amount must be positive.");
     const balance = this.tokenState.balances[user] || 0;
     if (balance < amount) throw new Error("Insufficient shares equity to stake.");
 
@@ -259,6 +266,7 @@ export class MintActonSDK {
   }
 
   public buySharesInteractive(buyer: string, amount: number): { costTON: number; sharesAllocated: number } {
+    if (amount <= 0) throw new Error("Buy amount must be positive.");
     const cost = this.getBuyCost(amount);
     this.tokenState.balances[buyer] = (this.tokenState.balances[buyer] || 0) + amount;
     this.tokenState.circulatingSupply += amount;
@@ -267,8 +275,10 @@ export class MintActonSDK {
   }
 
   public sellSharesInteractive(seller: string, amount: number): { payoutTON: number; exitTaxTON: number } {
+    if (amount <= 0) throw new Error("Sell amount must be positive.");
     const userBal = this.tokenState.balances[seller] || 0;
     if (userBal < amount) throw new Error("Insufficient shares to sell on curve.");
+    if (amount > this.tokenState.circulatingSupply) throw new Error("Sell amount exceeds circulating supply.");
 
     const rawPayout = this.getSellReturn(amount);
     

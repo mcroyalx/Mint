@@ -375,7 +375,8 @@ export default function Home() {
           });
           setChannels(migratedChannels);
         } catch (e) {
-          console.error("Error reading saved channels", e);
+          console.error("Error reading saved channels, clearing corrupted data:", e);
+          localStorage.removeItem("ton_tda_channels_v5");
         }
       }
       const savedReqs = localStorage.getItem("tda_applications_v5");
@@ -383,23 +384,37 @@ export default function Home() {
         try {
           setTdaRequests(JSON.parse(savedReqs));
         } catch (e) {
-          console.error("Error parsing applications", e);
+          console.error("Error parsing applications, clearing corrupted data:", e);
+          localStorage.removeItem("tda_applications_v5");
         }
       }
       const savedBalance = localStorage.getItem("ton_balance_v5");
       if (savedBalance) {
-        setTonBalance(parseFloat(savedBalance));
+        const parsed = parseFloat(savedBalance);
+        if (!isNaN(parsed)) {
+          setTonBalance(parsed);
+        } else {
+          console.error("Corrupted ton_balance_v5 in localStorage, resetting.");
+          localStorage.removeItem("ton_balance_v5");
+        }
       }
       const savedUsdt = localStorage.getItem("usdt_balance_v5");
       if (savedUsdt) {
-        setUsdtBalance(parseFloat(savedUsdt));
+        const parsed = parseFloat(savedUsdt);
+        if (!isNaN(parsed)) {
+          setUsdtBalance(parsed);
+        } else {
+          console.error("Corrupted usdt_balance_v5 in localStorage, resetting.");
+          localStorage.removeItem("usdt_balance_v5");
+        }
       }
       const savedHoldings = localStorage.getItem("ton_holdings_v5");
       if (savedHoldings) {
         try {
           setHoldings(JSON.parse(savedHoldings));
         } catch (e) {
-          console.error("Error parsing saved holdings", e);
+          console.error("Error parsing saved holdings, clearing corrupted data:", e);
+          localStorage.removeItem("ton_holdings_v5");
         }
       }
       const savedActivity = localStorage.getItem("ton_activity_v5");
@@ -407,7 +422,8 @@ export default function Home() {
         try {
           setActivity(JSON.parse(savedActivity));
         } catch (e) {
-          console.error("Error parsing saved activity logs", e);
+          console.error("Error parsing saved activity logs, clearing corrupted data:", e);
+          localStorage.removeItem("ton_activity_v5");
         }
       }
       const savedAdminRole = localStorage.getItem("ton_admin_role_v5") as any;
@@ -419,7 +435,8 @@ export default function Home() {
         try {
           setSystemSettings(JSON.parse(savedSettings));
         } catch (e) {
-          console.error("Error parsing settings", e);
+          console.error("Error parsing settings, clearing corrupted data:", e);
+          localStorage.removeItem("ton_system_settings_v5");
         }
       }
       const savedUsersList = localStorage.getItem("ton_system_users_v5");
@@ -427,7 +444,8 @@ export default function Home() {
         try {
           setUsers(JSON.parse(savedUsersList));
         } catch (e) {
-          console.error("Error parsing users", e);
+          console.error("Error parsing users, clearing corrupted data:", e);
+          localStorage.removeItem("ton_system_users_v5");
         }
       }
       const savedNewsList = localStorage.getItem("ton_news_list_v5");
@@ -435,7 +453,8 @@ export default function Home() {
         try {
           setNewsList(JSON.parse(savedNewsList));
         } catch (e) {
-          console.error("Error parsing news list", e);
+          console.error("Error parsing news list, clearing corrupted data:", e);
+          localStorage.removeItem("ton_news_list_v5");
         }
       }
       const savedInvestorApps = localStorage.getItem("ton_investor_apps_v5");
@@ -443,7 +462,8 @@ export default function Home() {
         try {
           setInvestorApplications(JSON.parse(savedInvestorApps));
         } catch (e) {
-          console.error("Error parsing investor apps", e);
+          console.error("Error parsing investor apps, clearing corrupted data:", e);
+          localStorage.removeItem("ton_investor_apps_v5");
         }
       }
 
@@ -458,7 +478,8 @@ export default function Home() {
             localStorage.setItem("ton_telegram_user_v5", JSON.stringify(finalTgUser));
           }
         } catch (e) {
-          console.error("Error parsing saved Telegram user", e);
+          console.error("Error parsing saved Telegram user, clearing corrupted data:", e);
+          localStorage.removeItem("ton_telegram_user_v5");
         }
       }
 
@@ -1298,12 +1319,20 @@ export default function Home() {
         body: JSON.stringify({ channelHandle: verifyHandle }),
       });
 
-      const parsed = await response.json();
-      setApiResult(parsed);
-      setTdaStep(2); // Progress to report screen
+      const parsed = await response.json().catch(() => null);
+      if (!response.ok) {
+        console.error(`Gemini API returned HTTP ${response.status}:`, parsed);
+      }
+      if (parsed) {
+        setApiResult(parsed);
+        setTdaStep(2);
+      } else {
+        alert(language === "ru" ? "Ошибка при анализе канала. Пожалуйста, попробуйте снова." : "Failed to analyze channel. Please try again.");
+      }
     } catch (e) {
-      console.error(e);
-      alert("Verification issue. Initializing premium automated fallback.");
+      const message = e instanceof Error ? e.message : "Unknown error";
+      console.error("Gemini query failed:", message);
+      alert(language === "ru" ? "Ошибка сети. Пожалуйста, попробуйте снова." : `Network error: ${message}. Please try again.`);
     } finally {
       setIsVerifying(false);
     }

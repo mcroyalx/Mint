@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
       webhookData = await setWebhookRes.json();
     } catch (wErr) {
       console.warn("Failed to set webhook with Telegram due to network/timeout:", wErr);
+      webhookData = { ok: false, error: "Network timeout or connection failure" };
     }
 
     // 3. Set persistent Menu Button for all users to launch the Telegram Mini App (Web App)
@@ -102,6 +103,7 @@ export async function GET(req: NextRequest) {
       menuButtonData = await setMenuButtonRes.json();
     } catch (menuErr: any) {
       console.warn("Failed to automatically configure bot menu button:", menuErr);
+      menuButtonData = { ok: false, error: menuErr.message || "Menu button configuration failed" };
     }
 
     return NextResponse.json({
@@ -206,6 +208,7 @@ export async function POST(req: NextRequest) {
           }
         } catch (innerErr) {
           console.error("Failed to query live Gemini route inside tg webhook:", innerErr);
+          // reportData already holds the fallback response from above
         }
 
         const formatNum = (num: number) => {
@@ -304,17 +307,25 @@ async function sendTelegramMessage(token: string, chatId: number, text: string, 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    console.error(`sendTelegramMessage failed (HTTP ${res.status}):`, data.description || data);
+  }
+  return data;
 }
 
 async function deleteTelegramMessage(token: string, chatId: number, messageId: number) {
   const url = `https://api.telegram.org/bot${token}/deleteMessage`;
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      console.error(`deleteTelegramMessage failed (HTTP ${res.status}):`, data?.description || res.statusText);
+    }
   } catch (e) {
     console.error("Failed to delete temp tg message:", e);
   }
