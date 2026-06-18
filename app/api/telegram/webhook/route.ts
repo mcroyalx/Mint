@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_TOKEN = "8880314964:AAEo6hqxCDxoTINeLjrt9BXfitZrH4NpDvA";
-
-function getBotToken() {
-  return DEFAULT_TOKEN;
+function getBotToken(): string | null {
+  return process.env.TELEGRAM_BOT_TOKEN || null;
 }
 
 // GET /api/telegram/webhook - dynamically registers or checks the webhook
@@ -75,8 +73,13 @@ export async function GET(req: NextRequest) {
     // 2. Set webhook with Telegram API (using short timeout so it doesn't block loading the site)
     let webhookData = null;
     try {
+      const webhookParams = new URLSearchParams({ url: webhookUrl });
+      const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+      if (webhookSecret) {
+        webhookParams.set("secret_token", webhookSecret);
+      }
       const setWebhookRes = await fetchWithTimeout(
-        `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`
+        `https://api.telegram.org/bot${token}/setWebhook?${webhookParams.toString()}`
       );
       webhookData = await setWebhookRes.json();
     } catch (wErr) {
@@ -113,7 +116,7 @@ export async function GET(req: NextRequest) {
       set_menu_button_response: menuButtonData,
       sandbox: false
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("General Telegram integration registration failed:", err);
     // Even in case of general error, return 200 OK with Sandbox bot so the page inside the iframe never crashes!
     return NextResponse.json({
@@ -121,8 +124,7 @@ export async function GET(req: NextRequest) {
       message: "Resilient safety mode active",
       bot: FALLBACK_BOT,
       webhook_url: webhookUrl,
-      sandbox: true,
-      error: err.message
+      sandbox: true
     });
   }
 }
@@ -131,6 +133,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = getBotToken();
+
+    if (!token) {
+      return NextResponse.json({ ok: false, error: "Bot not configured" }, { status: 503 });
+    }
+
+    // Verify webhook secret header to ensure request originates from Telegram
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const secretHeader = req.headers.get("x-telegram-bot-api-secret-token");
+      if (secretHeader !== webhookSecret) {
+        return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
     const body = await req.json();
 
     if (!body || !body.message) {
@@ -280,9 +296,9 @@ export async function POST(req: NextRequest) {
     ]);
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Telegram webhook incoming POST handler error:", err);
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }
 

@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { channelHandle } = body;
 
-    const handle = channelHandle?.trim().replace(/^@/, "") || "durov_news";
+    // Sanitize: only allow valid Telegram handle characters (alphanumeric + underscore, max 32 chars)
+    const rawHandle = channelHandle?.trim().replace(/^@/, "") || "durov_news";
+    const handle = rawHandle.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32) || "durov_news";
 
     const ai = getGeminiClient();
 
@@ -73,11 +75,11 @@ Provide a premium investor prospectus structured in 3 clear high-impact sentence
     const data = JSON.parse(text.trim());
     return NextResponse.json(data);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gemini TDA Analysis API Error:", error);
-    // Graceful fallback so the client never crashes
+    // Graceful fallback so the client never crashes — do not leak internal error details
     const fallbackData = generateFallbackResponse("fallback");
-    return NextResponse.json({ ...fallbackData, error: error.message, isInteractiveMock: true });
+    return NextResponse.json({ ...fallbackData, error: "Analysis temporarily unavailable", isInteractiveMock: true });
   }
 }
 

@@ -256,29 +256,40 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isHydrated]);
 
-  // Input controller for security PIN
+  // Input controller for security PIN — verified server-side
   const handlePINInput = (num: string) => {
     if (adminPasscode.length >= 4) return;
     const nextPIN = adminPasscode + num;
     setAdminPasscode(nextPIN);
     
     if (nextPIN.length === 4) {
-      if (nextPIN === "2026" || nextPIN === "7777" || nextPIN === "0000") {
-        setTimeout(() => {
-          setIsAdminAuthenticated(true);
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("ton_admin_auth_passed_v5", "true");
+      fetch("/api/admin/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: nextPIN }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            setIsAdminAuthenticated(true);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("ton_admin_auth_passed_v5", "true");
+            }
+          } else {
+            setPasscodeError(true);
+            setTimeout(() => {
+              setPasscodeError(false);
+              setAdminPasscode("");
+            }, 800);
           }
-        }, 350);
-      } else {
-        setTimeout(() => {
+        })
+        .catch(() => {
           setPasscodeError(true);
           setTimeout(() => {
             setPasscodeError(false);
             setAdminPasscode("");
           }, 800);
-        }, 150);
-      }
+        });
     }
   };
 
