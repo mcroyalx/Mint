@@ -46,7 +46,6 @@ export function runContractSimulationSuite(): TestResult[] {
     const finalReceipt = testSDK.finalizeTDA();
 
     const finalBalA = testSDK.tokenState.balances[backerA] || 0;
-    const expectedSharesPct = 120000 / 200000; // ratio is 0.6
     
     const passed = finalBalA > initialTokenBalCount && finalReceipt.oversubscriptionRatio === 1.3333333333333333;
     results.push({

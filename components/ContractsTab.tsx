@@ -4,26 +4,15 @@ import React, { useState, useEffect } from "react";
 import {
   Cpu,
   Layers,
-  FileText,
   Play,
   CheckCircle,
-  Code,
-  ShieldAlert,
   Coins,
-  ArrowRight,
   TrendingUp,
-  Award,
-  Lock,
   Vote,
-  ExternalLink,
-  Info,
   Terminal,
-  Activity,
   Copy
 } from "lucide-react";
-import { motion } from "motion/react";
 import { MintActonSDK } from "@/lib/ton/actonWrapper";
-import { deployMintEcosystem } from "@/lib/ton/deploySinks";
 import { runContractSimulationSuite, TestResult } from "@/lib/ton/testContracts";
 
 // Format helper

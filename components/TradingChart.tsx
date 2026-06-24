@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { Clock, BarChart2, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, Zap } from "lucide-react";
+import { BarChart2, ArrowUpRight, ArrowDownRight, Zap } from "lucide-react";
 
 interface TradingChartProps {
   channelId: string;
@@ -301,16 +301,6 @@ export default function TradingChart({
     return { linePath: lPath, areaPath: aPath };
   }, [data, getX, getY, margin.top, chartHeight]);
 
-  const segmentPerformance = useMemo(() => {
-    const startObj = data[0];
-    const initialOpen = startObj?.open || 0.001;
-    const diff = activePoint.close - initialOpen;
-    const pct = (diff / initialOpen) * 100;
-    return {
-      isUp: diff >= 0,
-      pctStr: `${diff >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
-    };
-  }, [activePoint, data]);
 
   // SIMULATE LIVE COIN ENGINE FLOW (Exactly like real-life order tickers)
   useEffect(() => {

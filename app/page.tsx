@@ -3,44 +3,30 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
-  Asterisk,
   Search,
-  Bell,
   TrendingUp,
   TrendingDown,
   Wallet,
   ChevronRight,
-  ArrowUpRight,
   ArrowUp,
   Check,
   CheckCircle,
-  Calendar,
   ChevronLeft,
   User,
   Plus,
-  Minus,
   AlertCircle,
   Sparkles,
   Clock,
   Coins,
   Lock,
-  PieChart,
-  Share2,
-  Copy,
-  Activity,
-  ArrowDownRight,
   Sliders,
-  DollarSign,
   Briefcase,
-  Layers,
   FileText,
-  Bookmark,
   Building,
   Cpu,
   X,
   Shield,
   UploadCloud,
-  Download,
   Trash,
   Users,
   Eye,
@@ -48,7 +34,7 @@ import {
   Pencil,
   ExternalLink
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import dynamic from 'next/dynamic';
 
@@ -76,7 +62,6 @@ const formatNumber = (num: number, decimals?: number): string => {
 
 const NEWS_ITEMS: any[] = [];
 
-const DEFAULT_TDA_REQUESTS: any[] = [];
 
 export interface PlatformUser {
   id: string;
@@ -111,14 +96,7 @@ export default function Home() {
   // Currency Selection State (TON or USDT)
   const [displayCurrency, setDisplayCurrency] = useState<"TON" | "USDT">("TON");
 
-  const changeDisplayCurrency = (curr: "TON" | "USDT") => {
-    setDisplayCurrency(curr);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("mint_app_currency", curr);
-    }
-  };
 
-  const [showSettingsInProfile, setShowSettingsInProfile] = useState<boolean>(false);
 
   // Translation helper function
   const t = (en: string, ru: string): string => {
@@ -167,7 +145,7 @@ export default function Home() {
 
   // Interactive News slider index
   const [currentNewsIndex, setCurrentNewsIndex] = useState<number>(0);
-  const [slideDirection, setSlideDirection] = useState<number>(1); // 1 = forward, -1 = backward
+  const [, setSlideDirection] = useState<number>(1); // 1 = forward, -1 = backward
   const [newsList, setNewsList] = useState<any[]>(NEWS_ITEMS);
   const [isNewsAutoplay, setIsNewsAutoplay] = useState<boolean>(true);
   const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
@@ -181,7 +159,7 @@ export default function Home() {
   const [isPanningNews, setIsPanningNews] = useState<boolean>(false);
 
   // Admin access control (Always enabled by default for developer owner)
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isAdmin] = useState<boolean>(false);
 
   // Administrative aspect and role (switchable in control deck)
   const [adminRole, setAdminRole] = useState<"super_admin" | "moderator" | "risk_analyst" | "financial_auditor">("super_admin");
@@ -225,7 +203,7 @@ export default function Home() {
   // Blockchain system status states
   const [blockchainSimBlockHeight, setBlockchainSimBlockHeight] = useState<number>(10432581);
   const [blockchainSimLatency, setBlockchainSimLatency] = useState<number>(1.6);
-  const [blockchainSimValidators, setBlockchainSimValidators] = useState<number>(42);
+  const [blockchainSimValidators] = useState<number>(42);
 
   // New manual minting state fields
   const [newChanName, setNewChanName] = useState<string>("");
@@ -306,7 +284,6 @@ export default function Home() {
   const [uploadedFileBase64, setUploadedFileBase64] = useState("");
   const [fileIsPdf, setFileIsPdf] = useState(false);
   const [appSubmissionStatus, setAppSubmissionStatus] = useState<"idle" | "submitting" | "success">("idle");
-  const [tdaMode, setTdaMode] = useState<"apply" | "wizard">("apply");
 
   // Admin interaction UI states
   const [expandedProofId, setExpandedProofId] = useState<string | null>(null);
@@ -345,7 +322,7 @@ export default function Home() {
   } | null>(null);
 
   const [bindAlertBanner, setBindAlertBanner] = useState<boolean>(false);
-  const [coupledBot, setCoupledBot] = useState<{ username: string; first_name: string } | null>(null);
+  const [, setCoupledBot] = useState<{ username: string; first_name: string } | null>(null);
 
   // On layout mount, safely restore state items to components from localStorage
   useEffect(() => {
@@ -462,7 +439,6 @@ export default function Home() {
         }
       }
 
-      const isLoggedOutExplicitly = localStorage.getItem("ton_telegram_logged_out") === "true";
 
       if (!finalTgUser) {
         // First entry login & auto-bind!
@@ -755,7 +731,6 @@ export default function Home() {
   const [stagedChannel, setStagedChannel] = useState<ChannelTDA | null>(null); // Active Channel Market Page
 
   // Wallet State
-  const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [walletAction, setWalletAction] = useState<"deposit" | "withdraw" | null>(null);
   const [walletAmount, setWalletAmount] = useState<string>("");
   const [walletActionError, setWalletActionError] = useState<string | null>(null);
@@ -764,8 +739,7 @@ export default function Home() {
 
 
   // Notifications drawer / state
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([
+  const [, setNotifications] = useState<any[]>([
     {
       en: "Dividend distributed: Durov's Intel released $0.15/share revenue stream.",
       ru: "Выплачены дивиденды: Durov's Intel распределил $0.15 на акцию."
@@ -788,35 +762,15 @@ export default function Home() {
 
 
   // User Referral / Socials copy link
-  const [copiedReferral, setCopiedReferral] = useState(false);
 
   // TDA Setup Wizard Flow Steps
   // 1: Verify, 2: Gemini Report Review, 3: Adjust parameters, 4: Acton Contracts Deploy, 5: Live!
-  const [tdaStep, setTdaStep] = useState<number>(1);
-  const [verifyHandle, setVerifyHandle] = useState<string>("");
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
-  const [apiResult, setApiResult] = useState<any>(null); // Stores Gemini analysis results
   
   // Adjustable TDA Params
-  const [customSharesSupply, setCustomSharesSupply] = useState<number>(100000);
-  const [customFounderShare, setCustomFounderShare] = useState<number>(60);
-  const [customFloatShare, setCustomFloatShare] = useState<number>(30);
-  const [customVestingMonths, setCustomVestingMonths] = useState<number>(12);
 
   // Acton Smart Contract code visualization mode
-  const [selectedContractCode, setSelectedContractCode] = useState<"issuance" | "staking" | "trading">("issuance");
 
   // News Creation Form states
-  const [newNewsTagEn, setNewNewsTagEn] = useState<string>("UPGRADE • MAINNET");
-  const [newNewsTagRu, setNewNewsTagRu] = useState<string>("ОБНОВЛЕНИЕ • СЕТЬ");
-  const [newNewsTitleEn, setNewNewsTitleEn] = useState<string>("");
-  const [newNewsTitleRu, setNewNewsTitleRu] = useState<string>("");
-  const [newNewsDescEn, setNewNewsDescEn] = useState<string>("");
-  const [newNewsDescRu, setNewNewsDescRu] = useState<string>("");
-  const [newNewsDateEn, setNewNewsDateEn] = useState<string>("JUST NOW");
-  const [newNewsDateRu, setNewNewsDateRu] = useState<string>("ТОЛЬКО ЧТО");
-  const [newNewsBgStyle, setNewNewsBgStyle] = useState<string>("blue"); // 'blue' | 'indigo' | 'emerald' | 'amber' | 'rose'
-  const [newNewsCoverUrl, setNewNewsCoverUrl] = useState<string>("");
   const [isNewsCoverFileLoading, setIsNewsCoverFileLoading] = useState<boolean>(false);
 
   // Autoplay news interval effect (optimized with pause on hover, manual settings & interaction reset)
@@ -831,20 +785,12 @@ export default function Home() {
   }, [isNewsAutoplay, isHoveringNews, newsList.length, lastManualInteract]);
 
   // Local state for profile sub-views and active channel management
-  const [profileViewMode, setProfileViewMode] = useState<"channels" | "tda">("channels");
-  const [showTdaWizard, setShowTdaWizard] = useState<boolean>(false);
+  const [, setShowTdaWizard] = useState<boolean>(false);
 
   // Filter Categories
   const categories = ["All", "USDT Ecosystem", "VC & Startups", "Entertainment", "Tech & Dev"];
 
   // Connect Wallet
-  const handleConnectWallet = async () => {
-    if (walletConnected) {
-      await tonConnectUI.disconnect();
-    } else {
-      tonConnectUI.openModal();
-    }
-  };
 
   const handleCancelTda = (applicationId: string) => {
     const app = investorApplications.find(a => a.id === applicationId);
@@ -1243,7 +1189,6 @@ export default function Home() {
       });
 
       // Simple bonding curve pricing: price depreciates slightly on sell
-      const totalShares = channel.totalShares || 100000;
       
       // Kept prices fixed since user requested fixed quantities and prices.
 
@@ -1276,105 +1221,8 @@ export default function Home() {
 
 
   // Invoke Gemini AI to evaluate a Telegram channel for TDA setup
-  const handleQueryGemini = async () => {
-    const currentVisitorRecord = users.find((u) => u.id === "user_current");
-    if (currentVisitorRecord && currentVisitorRecord.status === "banned") {
-      alert(language === "ru" 
-        ? `Действие запрещено. Ваш аккаунт заблокирован по соображениям безопасности: ${currentVisitorRecord.suspensionReason || "Нарушение регламента"}`
-        : `Deactivated. Your account has been suspended by regulatory compliance: ${currentVisitorRecord.suspensionReason || "Policy violation"}`);
-      return;
-    }
-
-    if (!verifyHandle) {
-      alert("Please provide a valid Telegram channel @username");
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      const response = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelHandle: verifyHandle }),
-      });
-
-      const parsed = await response.json();
-      setApiResult(parsed);
-      setTdaStep(2); // Progress to report screen
-    } catch (e) {
-      console.error(e);
-      alert("Verification issue. Initializing premium automated fallback.");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   // Compile and Launch full customized TDA to Market Boards
-  const deployCustomTDA = () => {
-    const currentVisitorRecord = users.find((u) => u.id === "user_current");
-    if (currentVisitorRecord && currentVisitorRecord.status === "banned") {
-      alert(language === "ru" 
-        ? `Действие запрещено. Ваш аккаунт заблокирован по соображениям безопасности: ${currentVisitorRecord.suspensionReason || "Нарушение регламента"}`
-        : `Deactivated. Your account has been suspended by regulatory compliance: ${currentVisitorRecord.suspensionReason || "Policy violation"}`);
-      return;
-    }
-
-    if (!apiResult) return;
-
-    const newChannelID = "custom_" + apiResult.handle.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-    const newTDA: ChannelTDA = {
-      id: newChannelID,
-      handle: apiResult.handle,
-      channelName: apiResult.channelName,
-      category: apiResult.category || "General Media",
-      subscribers: apiResult.subscriberCount >= 1000000 
-        ? `${(apiResult.subscriberCount / 1000000).toFixed(1)}M` 
-        : `${(apiResult.subscriberCount / 1000).toFixed(0)}K`,
-      subscriberCount: apiResult.subscriberCount,
-      monthlyRevenue: apiResult.monthlyRevenue_USD, // 1:1 with USDT
-      valuation: apiResult.suggestedValuation_USD,
-      tdaProgress: 0,
-      countdownHours: 120,
-      tdaEndTime: Date.now() + (120 * 3600000), // Real ending timestamp
-      sharePrice: parseFloat((apiResult.suggestedValuation_USD / customSharesSupply).toFixed(4)),
-      priceChange24h: 0.0,
-      floatPercent: customFloatShare,
-      founderOwnershipPercent: customFounderShare,
-      holdersCount: 1, // Only founder initially
-      yieldPercent: apiResult.yieldPercent || 8.1,
-      isCustomTDA: true,
-      totalShares: customSharesSupply,
-      avatarUrl: uploadedFileBase64 || ""
-    };
-
-    // Append newly deployed equity token
-    setChannels((prev) => [newTDA, ...prev]);
-
-    // Create custom portfolio item as founder
-    setHoldings((prev) => [
-      ...prev,
-      {
-        channelId: newTDA.id,
-        sharesOwned: Math.floor(customSharesSupply * (customFounderShare / 100)),
-        avgBuyPrice: newTDA.sharePrice,
-        rewardsEarned: 0
-      }
-    ]);
-
-    // Track launch event
-    const launchAct: ActivityLog = {
-      id: "act_" + Date.now(),
-      type: "TDA_LAUNCH",
-      channelName: newTDA.channelName,
-      details: `TWA Deployed on Acton smart contracts. Issued ${formatNumber(customSharesSupply)} shares with ${customFounderShare}% founder vesting allocation.`,
-      timestamp: new Date().toISOString().replace("T", " ").substring(0, 16),
-      amountTON: 0
-    };
-    setActivity((prev) => [launchAct, ...prev]);
-
-    setTdaStep(5); // Completion step
-  };
 
   // File Upload base64 translation
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1744,80 +1592,6 @@ contract ${className} {
     });
 
   // Render Smart Contract Code blocks in Liquid aesthetics
-  const renderContractCode = () => {
-    switch (selectedContractCode) {
-      case "issuance":
-        return `// Acton Smart Contract: MediaEquityToken.act
-contract MediaEquityToken {
-    let ticker: String = "MINT";
-    let treasury: Address;
-    let founder: Address;
-    let totalShares: Int;
-    let outstandingShares: Int;
-    let floatPercent: Int;
-
-    init(supply: Int, float: Int, dev: Address) {
-        self.totalShares = supply;
-        self.founder = dev;
-        self.outstandingShares = (supply * float) / 100;
-        self.floatPercent = float;
-        self.treasury = context.sender;
-    }
-
-    public fun issueTDA() {
-        assert(context.sender == self.founder, "Unauthorized");
-        sendToken({
-            to: self.treasury,
-            amount: self.outstandingShares,
-            memo: "Public allocation issuance"
-        });
-    }
-}`;
-      case "staking":
-        return `// Acton Smart Contract: StakingRewardsPool.act
-contract StakingRewardsPool {
-    let tokenAddress: Address;
-    let stakers: Map<Address, Int>;
-    let rewardPerShare: Int = 0;
-    let exitTaxMultiplier: Int = 2; // 2% exit protection
-
-    init(equity: Address) {
-        self.tokenAddress = equity;
-    }
-
-    public fun stakeShares(amount: Int) {
-        transferTokensFrom(context.sender, self, amount);
-        let current = self.stakers.get(context.sender) ?? 0;
-        self.stakers.set(context.sender, current + amount);
-    }
-
-    public fun payoutAdDividends() {
-        let incomingStars = context.value;
-        self.rewardPerShare += (incomingStars / self.totalStaked);
-    }
-}`;
-      case "trading":
-        return `// Acton Smart Contract: MediaBondingCurve.act
-contract MediaBondingCurve {
-    let basePrice: Int = 1 * 10^6; // 1 USDT min
-    let reserveBalance: Int = 0;
-    let slopeCoefficient: Int = 1420;
-
-    public fun calculatePurchasePrice(amount: Int): Int {
-        let supply = self.currentCirculating;
-        // P = basePrice + slope * S
-        return (self.basePrice * amount) + (self.slopeCoefficient * amount * supply);
-    }
-
-    public fun buyShares(amountToBuy: Int) {
-        let cost = self.calculatePurchasePrice(amountToBuy);
-        assert(context.value >= cost, "Insufficient funds submitted");
-        transferShares(context.sender, amountToBuy);
-        self.reserveBalance += cost;
-    }
-}`;
-    }
-  };
 
   return (
     <div id="min-app-root" className="min-h-screen bg-[#141414] text-white flex flex-col max-w-md mx-auto relative border-x border-white/[0.04] pb-32 selection:bg-neutral-800">
@@ -2947,16 +2721,12 @@ contract MediaBondingCurve {
 
                     {/* 2. OTHER CHANNEL ASSETS / POSITIONS */}
                     <div className="divide-y divide-white/[0.02]">
-                      {holdings.map((h, index) => {
+                      {holdings.map((h) => {
                         const channel = channels.find((c) => c.id === h.channelId);
                         if (!channel) return null;
 
                       // Calculating pricing details for each share
                       const currentPriceValueTON = channel.sharePrice * h.sharesOwned;
-                      const purchasePriceValueTON = h.avgBuyPrice * h.sharesOwned;
-                      const profitLossAbsTON = currentPriceValueTON - purchasePriceValueTON;
-                      const profitLossAbsUSD = profitLossAbsTON * TON_TO_USD;
-                      const isProfit = profitLossAbsTON >= 0;
 
                       let avatarEl;
                       if (channel.avatarUrl) {
