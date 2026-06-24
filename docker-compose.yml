@@ -1,0 +1,26 @@
+services:
+  mint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mint:latest
+    container_name: mint
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    # Optional variables. Create a .env.local (copy from .env.example) to set
+    # GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, APP_URL.
+    # The app runs fine with none of them set.
+    env_file:
+      - path: .env.local
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
